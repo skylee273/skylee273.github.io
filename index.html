@@ -299,6 +299,52 @@ footer .wrap > p{margin:0 auto}
   .dtable{margin:22px 22px 0; overflow-x:auto}
   .feat-note{padding:14px 22px 0}
 }
+
+/* ================= Apple-like motion ================= */
+/* 1) 섹션 헤더 스티키 — 카드가 헤더 아래로 흘러감 */
+.sec-head{position:sticky; top:52px; z-index:20; background:rgba(255,255,255,.78);
+  backdrop-filter:saturate(180%) blur(20px); -webkit-backdrop-filter:saturate(180%) blur(20px);
+  padding:16px 0 14px; margin-bottom:38px}
+#stack .sec-head,#projects .sec-head{background:rgba(245,245,247,.82)}
+
+/* 2) 헤드라인 마스크 등장 (줄 단위로 아래에서 올라옴) */
+.mask{display:block; overflow:hidden}
+.mask > span{display:block; transform:translateY(105%); opacity:0;
+  transition:transform 1s var(--ease) var(--d,0s), opacity 1s var(--ease) var(--d,0s)}
+.in .mask > span,.mask.in > span{transform:none; opacity:1}
+
+/* 3) 표 행 순차 등장 */
+.dtable tbody tr,.dtable tr{opacity:0; transform:translateY(12px);
+  transition:opacity .6s var(--ease) var(--d,0s), transform .6s var(--ease) var(--d,0s)}
+.dtable.on tr{opacity:1; transform:none}
+
+/* 4) 가로 스냅 갤러리 (Apple gallery) */
+.gallery{position:relative}
+.gallery .rail{display:flex; gap:16px; overflow-x:auto; scroll-snap-type:x mandatory;
+  padding:30px 44px 34px; scrollbar-width:none; -ms-overflow-style:none; scroll-behavior:smooth}
+.gallery .rail::-webkit-scrollbar{display:none}
+.gallery .rail > .shot{flex:0 0 clamp(210px,24vw,260px); scroll-snap-align:center}
+.gallery .nav-btn{position:absolute; top:calc(50% - 22px); width:44px; height:44px; border-radius:50%; border:none;
+  background:rgba(255,255,255,.9); box-shadow:0 2px 10px rgba(0,0,0,.14); cursor:pointer; z-index:5;
+  display:grid; place-items:center; transition:.25s var(--ease); opacity:0}
+.gallery:hover .nav-btn{opacity:1}
+.gallery .nav-btn:disabled{opacity:0 !important; pointer-events:none}
+.gallery .nav-btn.prev{left:14px}
+.gallery .nav-btn.next{right:14px}
+.gallery .nav-btn::before{content:""; width:9px; height:9px; border-top:2px solid var(--fg); border-right:2px solid var(--fg)}
+.gallery .nav-btn.prev::before{transform:rotate(-135deg) translate(-2px,-2px)}
+.gallery .nav-btn.next::before{transform:rotate(45deg) translate(-2px,2px)}
+@media(max-width:720px){.gallery .rail{padding:22px 22px 26px} .gallery .nav-btn{display:none}}
+
+/* 5) 히어로 스크럽 */
+.hero-inner{will-change:transform,opacity}
+
+@media(prefers-reduced-motion:reduce){
+  .mask > span{transform:none !important; opacity:1 !important}
+  .dtable tr{opacity:1 !important; transform:none !important}
+  .sec-head{position:static}
+  .gallery .rail{scroll-behavior:auto}
+}
 </style>
 </head>
 <body>
@@ -320,7 +366,7 @@ footer .wrap > p{margin:0 auto}
 </nav>
 
 <header class="hero">
-  <div class="wrap">
+  <div class="wrap"><div class="hero-inner">
     <div class="eyebrow">Backend &amp; Android Engineer · 6 YRS</div>
     <h1>
       <span class="ko">이하늘</span>
@@ -343,7 +389,7 @@ footer .wrap > p{margin:0 auto}
       <div class="stat"><div class="num">60<small>억</small></div><div class="lbl">카드+앱 통합 설계</div></div>
       <div class="stat"><div class="num">37.6<small>%</small></div><div class="lbl">온보딩 동의율 27.4% → 37.6% (p&lt;.05)</div></div>
     </div>
-  </div>
+  </div></div>
 </header>
 
 <section id="about">
@@ -1042,47 +1088,105 @@ footer .wrap > p{margin:0 auto}
 <script>
 (() => {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const EASE = t => 1 - Math.pow(1 - t, 3);
 
-  /* --- 1. 카드/섹션 등장 + 내부 블록 시차 --- */
-  const BLOCKS = ':scope > .feat-top, :scope > .feat-desc, :scope > .feat-metrics, :scope > .feat-flow,'
-               + ':scope > .psr, :scope > .ladder, :scope > .dtable, :scope > .feat-note,'
-               + ':scope > .feat-imgs, :scope > .feat-tags';
+  /* ---------- 0. 헤드라인을 마스크 구조로 감싸기 ---------- */
+  document.querySelectorAll('.sec-title, .feat-top h3, .foot-cta, .about-grid .lead').forEach(el => {
+    const kids = [...el.childNodes].filter(n => !(n.nodeType === 1 && n.classList?.contains('role')));
+    const role = el.querySelector('.role');
+    const holder = document.createElement('span');
+    holder.className = 'mask';
+    const inner = document.createElement('span');
+    kids.forEach(n => inner.appendChild(n));
+    holder.appendChild(inner);
+    el.insertBefore(holder, el.firstChild);
+    if (role) el.appendChild(role);
+  });
+
+  /* ---------- 1. 카드 내부 블록 시차 ---------- */
+  const BLOCKS = ':scope > .feat-top, :scope > .feat-desc, :scope > .feat-sub, :scope > .feat-metrics,'
+               + ':scope > .feat-flow, :scope > .psr, :scope > .ladder, :scope > .dtable,'
+               + ':scope > .feat-note, :scope > .feat-imgs, :scope > .gallery, :scope > .feat-tags';
   document.querySelectorAll('.feat').forEach(f => {
-    f.querySelectorAll(BLOCKS).forEach((b, i) => {
-      b.classList.add('rv');
-      b.style.setProperty('--d', (0.06 * i) + 's');
-    });
+    f.querySelectorAll(BLOCKS).forEach((b, i) => { b.classList.add('rv'); b.style.setProperty('--d', (0.06 * i) + 's'); });
   });
   document.querySelectorAll('.grid, .stack-grid').forEach(g => {
     [...g.children].forEach((c, i) => c.style.setProperty('--d', (0.05 * (i % 3)) + 's'));
   });
 
+  /* ---------- 2. 숫자 카운트업 ---------- */
+  const wrapNums = el => {
+    if (el.dataset.cnt) return;
+    el.dataset.cnt = '1';
+    const walk = node => {
+      [...node.childNodes].forEach(n => {
+        if (n.nodeType === 3 && /\d/.test(n.nodeValue)) {
+          const frag = document.createDocumentFragment();
+          n.nodeValue.split(/([\d]+(?:[.,]\d+)*)/).forEach(part => {
+            if (/^\d/.test(part)) {
+              const sp = document.createElement('span');
+              sp.className = 'cnt'; sp.dataset.v = part; sp.textContent = part;
+              frag.appendChild(sp);
+            } else frag.appendChild(document.createTextNode(part));
+          });
+          node.replaceChild(frag, n);
+        } else if (n.nodeType === 1 && !n.classList.contains('cnt')) walk(n);
+      });
+    };
+    walk(el);
+  };
+  const countUp = el => {
+    el.querySelectorAll('.cnt').forEach((sp, i) => {
+      const raw = sp.dataset.v, target = parseFloat(raw.replace(/,/g, ''));
+      if (!isFinite(target)) return;
+      const dec = (raw.split('.')[1] || '').length;
+      const grouped = raw.includes(',');
+      const dur = 900, delay = 90 * i, t0 = performance.now() + delay;
+      const fmt = v => {
+        let out = v.toFixed(dec);
+        if (grouped) out = Number(out).toLocaleString('ko-KR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+        return out;
+      };
+      sp.textContent = fmt(0);
+      const step = now => {
+        const t = Math.min(1, Math.max(0, (now - t0) / dur));
+        sp.textContent = fmt(target * EASE(t));
+        if (t < 1) requestAnimationFrame(step); else sp.textContent = raw;
+      };
+      requestAnimationFrame(step);
+    });
+  };
+
+  /* ---------- 3. 등장 처리 ---------- */
   const show = el => {
     el.classList.add('in');
     el.querySelectorAll('.rv').forEach(r => r.classList.add('in'));
-    el.querySelectorAll('.shot').forEach((sh, i) => {
-      sh.style.setProperty('--d', (0.08 * i) + 's');
-      sh.classList.add('settled');
+    el.querySelectorAll('.mask').forEach((m, i) => { m.style.setProperty('--d', (0.05 * i) + 's'); m.classList.add('in'); });
+    el.querySelectorAll('.shot').forEach((sh, i) => { sh.style.setProperty('--d', (0.07 * i) + 's'); sh.classList.add('settled'); });
+    el.querySelectorAll('.dtable').forEach(t => {
+      [...t.querySelectorAll('tr')].forEach((tr, i) => tr.style.setProperty('--d', (0.05 * i) + 's'));
+      t.classList.add('on');
     });
     el.querySelectorAll('.fm, .ladder .step, .stat').forEach((n, i) => {
-      n.style.setProperty('--d', (0.09 * i + 0.12) + 's');
+      n.style.setProperty('--d', (0.09 * i + 0.1) + 's');
       n.classList.add('on');
+      const v = n.querySelector('.v, .num');
+      if (v && !reduce) { wrapNums(v); setTimeout(() => countUp(v), 120 + i * 90); }
     });
   };
 
   if (reduce) {
-    document.querySelectorAll('.reveal, .rv').forEach(el => el.classList.add('in'));
+    document.querySelectorAll('.reveal, .rv, .mask').forEach(el => el.classList.add('in'));
     document.querySelectorAll('.shot').forEach(el => el.classList.add('settled'));
+    document.querySelectorAll('.dtable').forEach(el => el.classList.add('on'));
     document.querySelectorAll('.fm, .ladder .step, .stat').forEach(el => el.classList.add('on'));
   } else {
-    const io = new IntersectionObserver((es) => {
+    const io = new IntersectionObserver(es => {
       es.forEach(e => { if (e.isIntersecting) { show(e.target); io.unobserve(e.target); } });
     }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
     document.querySelectorAll('.reveal').forEach(el => io.observe(el));
-    // 히어로는 첫 화면이라 즉시
-    document.querySelectorAll('.hero .stats').forEach(show);
+    document.querySelectorAll('.hero .stats, .hero h1, .hero .hero-lead').forEach(show);
 
-    // 안전장치: 관찰자가 동작하지 않는 환경에서도 화면에 들어온 요소는 보이게
     let checking = false;
     const sweep = () => {
       checking = false;
@@ -1093,36 +1197,68 @@ footer .wrap > p{margin:0 auto}
     };
     addEventListener('scroll', () => { if (!checking) { checking = true; requestAnimationFrame(sweep); } }, { passive: true });
     addEventListener('load', sweep);
-    setTimeout(sweep, 1200);
+    setTimeout(sweep, 1000);
   }
 
-  /* --- 2. 폰 목업 패럴랙스 (스크롤에 따라 아주 약하게 어긋나게) --- */
-  if (!reduce && matchMedia('(min-width: 861px)').matches) {
-    const items = [...document.querySelectorAll('.shot.ph')];
+  /* ---------- 4. 히어로 스크럽 + 폰 목업 패럴랙스 ---------- */
+  if (!reduce) {
+    const heroInner = document.querySelector('.hero-inner');
+    const phones = [...document.querySelectorAll('.shot.ph')];
     const live = new Set();
-    const vio = new IntersectionObserver((es) => {
-      es.forEach(e => e.isIntersecting ? live.add(e.target) : live.delete(e.target));
-    }, { rootMargin: '20% 0px' });
-    items.forEach(el => vio.observe(el));
-
+    if (phones.length && matchMedia('(min-width: 861px)').matches) {
+      const vio = new IntersectionObserver(es => es.forEach(e => e.isIntersecting ? live.add(e.target) : live.delete(e.target)), { rootMargin: '20% 0px' });
+      phones.forEach(el => vio.observe(el));
+    }
     let ticking = false;
     const frame = () => {
-      const vh = innerHeight;
+      ticking = false;
+      const vh = innerHeight, y = scrollY;
+      if (heroInner) {
+        const p = Math.min(1, y / (vh * 0.9));
+        heroInner.style.transform = 'translate3d(0,' + (p * -60).toFixed(1) + 'px,0) scale(' + (1 - p * 0.05).toFixed(4) + ')';
+        heroInner.style.opacity = (1 - p * 0.9).toFixed(3);
+      }
       live.forEach(el => {
         const r = el.getBoundingClientRect();
-        const p = ((r.top + r.height / 2) - vh / 2) / vh;   // -1 ~ 1
+        const p = ((r.top + r.height / 2) - vh / 2) / vh;
         const col = [...el.parentElement.children].indexOf(el);
-        const depth = 10 + (col % 3) * 5;                   // 열마다 깊이를 달리 줌
-        el.style.transform = 'translate3d(0,' + (p * depth).toFixed(2) + 'px,0)';
+        el.style.transform = 'translate3d(0,' + (p * (10 + (col % 3) * 5)).toFixed(2) + 'px,0)';
       });
-      ticking = false;
     };
     addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(frame); } }, { passive: true });
     addEventListener('resize', frame, { passive: true });
     frame();
   }
 
-  /* --- 3. 상단 바: 스크롤 시 경계선/그림자 --- */
+  /* ---------- 5. Product 가로 스냅 갤러리 ---------- */
+  const prodImgs = document.querySelector('#product .feat-imgs');
+  if (prodImgs) {
+    const gal = document.createElement('div');
+    gal.className = 'gallery';
+    prodImgs.parentNode.insertBefore(gal, prodImgs);
+    prodImgs.classList.remove('feat-imgs');
+    prodImgs.classList.add('rail');
+    gal.appendChild(prodImgs);
+    const mk = dir => {
+      const b = document.createElement('button');
+      b.className = 'nav-btn ' + dir; b.type = 'button';
+      b.setAttribute('aria-label', dir === 'prev' ? '이전' : '다음');
+      b.addEventListener('click', () => {
+        const step = prodImgs.querySelector('.shot').getBoundingClientRect().width + 16;
+        prodImgs.scrollBy({ left: dir === 'prev' ? -step * 2 : step * 2, behavior: 'smooth' });
+      });
+      gal.appendChild(b); return b;
+    };
+    const prev = mk('prev'), next = mk('next');
+    const sync = () => {
+      prev.disabled = prodImgs.scrollLeft < 8;
+      next.disabled = prodImgs.scrollLeft > prodImgs.scrollWidth - prodImgs.clientWidth - 8;
+    };
+    prodImgs.addEventListener('scroll', sync, { passive: true });
+    addEventListener('resize', sync); sync();
+  }
+
+  /* ---------- 6. 상단 바 ---------- */
   const nav = document.getElementById('nav');
   addEventListener('scroll', () => {
     const y = scrollY;
