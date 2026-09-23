@@ -23,7 +23,11 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth; -webkit-text-size-adjust:100%}
 body{background:var(--ink); color:var(--fg); font-family:var(--sans);
-  font-size:17px; line-height:1.6; letter-spacing:-.01em; -webkit-font-smoothing:antialiased; overflow-x:hidden}
+  font-size:17px; line-height:1.6; letter-spacing:-.01em; -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  word-break:keep-all; overflow-wrap:break-word}
+h1,h2,h3,h4,p,li,td,th,span,div{word-break:keep-all; overflow-wrap:break-word}
+.hero h1,.sec-title,.feat-top h3,.tl-body h3,.card h3,.foot-cta,.about-grid .lead{text-wrap:balance}
+.feat-desc,.hero-lead,.about-grid p,.psr .box p,.card p,.tl-body li,.feat-note{text-wrap:pretty}
 body::before,body::after{content:none}
 .wrap{position:relative; z-index:1; max-width:1040px; margin:0 auto; padding:0 24px}
 b,strong{font-weight:600}
