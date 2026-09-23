@@ -301,12 +301,6 @@ footer .wrap > p{margin:0 auto}
 }
 
 /* ================= Apple-like motion ================= */
-/* 1) 섹션 헤더 스티키 — 카드가 헤더 아래로 흘러감 */
-.sec-head{position:sticky; top:52px; z-index:20; background:rgba(255,255,255,.78);
-  backdrop-filter:saturate(180%) blur(20px); -webkit-backdrop-filter:saturate(180%) blur(20px);
-  padding:16px 0 14px; margin-bottom:38px}
-#stack .sec-head,#projects .sec-head{background:rgba(245,245,247,.82)}
-
 /* 2) 헤드라인 마스크 등장 (줄 단위로 아래에서 올라옴) */
 .mask{display:block; overflow:hidden}
 .mask > span{display:block; transform:translateY(105%); opacity:0;
@@ -342,7 +336,6 @@ footer .wrap > p{margin:0 auto}
 @media(prefers-reduced-motion:reduce){
   .mask > span{transform:none !important; opacity:1 !important}
   .dtable tr{opacity:1 !important; transform:none !important}
-  .sec-head{position:static}
   .gallery .rail{scroll-behavior:auto}
 }
 </style>
