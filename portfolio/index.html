@@ -998,8 +998,8 @@ footer .wrap{display:flex;align-items:center;justify-content:space-between;gap:1
 }
 
 /* ---- 이름 마크(3D 캔버스 대체) ---- */
-.hero-mark.no-gl .mark-txt{display:block;font-weight:800;letter-spacing:.12em;font-size:clamp(34px,7vw,64px);
-  background:linear-gradient(135deg,#E53124 0%,#1d1d1f 60%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.mark-txt{width:auto;text-align:center;font-weight:800;letter-spacing:.18em;font-size:clamp(30px,6vw,56px);
+  color:#E53124;text-shadow:0 2px 10px rgba(0,0,0,.08)}
 </style>
 </head>
 <body class="load">
@@ -1047,7 +1047,7 @@ footer .wrap{display:flex;align-items:center;justify-content:space-between;gap:1
 
 <section class="sec hero" id="top" data-bg="#F5F5F7" data-ink="dark" data-chapter="intro" data-label="소개">
   <div class="wrap">
-    <div class="hero-mark no-gl" id="heroMark"><span class="mark-txt">ㅇ · ㅎ · ㄴ</span></div>
+    <div class="hero-mark" id="heroMark"><canvas id="markCanvas" aria-hidden="true"></canvas><span class="mark-fallback mark-txt" aria-hidden="true">● ▲ ■</span></div>
     <div class="hero-copy">
       <h1 class="hero-title">업무 규칙을 먼저 이해하고, 구조로 풀고,<br>운영까지 책임지는 앱 엔지니어입니다.</h1>
       <p class="hero-role">App Engineer <i></i> 금융·커머스 6년차</p>
@@ -1299,6 +1299,205 @@ footer .wrap{display:flex;align-items:center;justify-content:space-between;gap:1
     <span class="foot-mail"><a href="https://github.com/skylee273?tab=repositories" target="_blank" rel="noopener">GitHub <svg><use href="#i-ne"/></svg></a></span>
   </div>
 </footer>
+<script>/* 3D 마크 — 원 · 삼각형 · 둥근 사각형 — 라이브러리 없는 WebGL 레이마칭
+   ○ △ ㅈ 세 도형을 부풀린(inflated) 글로시·리퀴드 글래스 입체로 렌더링.
+   사용: Mark3D(canvas, { preset: 'mix' | 'gloss' | 'glass', still: false }) */
+window.Mark3D = (function () {
+  const PRESETS = {
+    // 색(r,g,b)과 재질(0 글로시, 1 글래스, 2 크롬)
+    mix:   { col: [[0.898, 0.196, 0.176], [0.97, 0.97, 0.99], [0.06, 0.06, 0.07]], mat: [0, 1, 0] },
+    gloss: { col: [[0.898, 0.196, 0.176], [0.96, 0.96, 0.97], [0.06, 0.06, 0.07]], mat: [0, 0, 0] },
+    glass: { col: [[1.0, 0.55, 0.52], [0.93, 0.95, 1.0], [0.88, 0.9, 0.95]], mat: [1, 1, 1] }
+  };
+
+  const VS = 'attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}';
+  const FS = `
+precision highp float;
+uniform vec2 R; uniform float T; uniform vec2 M;
+uniform vec3 C0,C1,C2; uniform vec3 MAT;
+uniform vec3 BG;
+
+mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
+
+float smax(float a,float b,float k){ float h=max(k-abs(a-b),0.)/k; return max(a,b)+h*h*k*.25; }
+float hp(vec2 p, vec2 a, vec2 b){ vec2 e=normalize(b-a); return (p-a).y*e.x-(p-a).x*e.y; } // 시계방향 변의 바깥쪽 거리
+float sdTri(vec2 p){
+  vec2 v0=vec2(0.,.50), v1=vec2(.50,-.40), v2=vec2(-.50,-.40);
+  float k=.16;
+  return smax(smax(hp(p,v0,v1),hp(p,v1,v2),k),hp(p,v2,v0),k);
+}
+float sdJ(vec2 p){
+  // 둥근 사각형 (문자 대신 중립 도형)
+  float k=.17;
+  return smax(abs(p.x)-.44,abs(p.y)-.44,k);
+}
+float inflate(float d2, float z, float W){
+  float bul=.10*smoothstep(0.,.55,-d2);
+  vec2 w=vec2(d2+W, abs(z)-bul);
+  return (min(max(w.x,w.y),0.)+length(max(w,0.))-W)*.85;
+}
+vec3 P0,P1,P2; mat3 R0,R1,R2;
+mat3 m3(float ax,float ay){ mat2 a=rot(ax), b=rot(ay);
+  return mat3(1.,0.,0., 0.,a[0][0],a[0][1], 0.,a[1][0],a[1][1]) * mat3(b[0][0],0.,b[0][1], 0.,1.,0., b[1][0],0.,b[1][1]); }
+float s0(vec3 p){ vec3 q=R0*(p-P0); return inflate(length(q.xy)-.48,q.z,.36); }
+float s1(vec3 p){ vec3 q=R1*(p-P1); return inflate(sdTri(q.xy),q.z,.27); }
+float s2(vec3 p){ vec3 q=R2*(p-P2); return inflate(sdJ(q.xy),q.z,.25); }
+vec2 map(vec3 p){
+  float a=s0(p),b=s1(p),c=s2(p);
+  vec2 r=vec2(a,0.); if(b<r.x) r=vec2(b,1.); if(c<r.x) r=vec2(c,2.);
+  return r;
+}
+float mapId(vec3 p,float id){ return id<.5?s0(p):id<1.5?s1(p):s2(p); }
+vec3 nrm(vec3 p,float id){ vec2 e=vec2(.0015,-.0015);
+  return normalize(e.xyy*mapId(p+e.xyy,id)+e.yyx*mapId(p+e.yyx,id)+e.yxy*mapId(p+e.yxy,id)+e.xxx*mapId(p+e.xxx,id)); }
+
+vec3 env(vec3 d){
+  float y=d.y;
+  vec3 top=vec3(1.), hor=BG, bot=BG*.62;
+  vec3 c= y>0. ? mix(hor,top,pow(y,.7)) : mix(hor,bot,pow(-y,.6));
+  // 소프트박스 조명 두 개와 림 라이트
+  float s1=smoothstep(.05,0.,abs(d.x+.42)-.2)*smoothstep(.05,0.,abs(d.y-.5)-.22)*step(0.,d.z);
+  float s2=smoothstep(.08,0.,abs(d.x-.62)-.08)*smoothstep(.08,0.,abs(d.y-.1)-.45)*step(0.,d.z);
+  float s3=smoothstep(.3,0.,abs(d.y-.95));
+  c+=vec3(2.2)*s1+vec3(1.3)*s2+vec3(.4)*s3;
+  return c;
+}
+float shadow(vec3 ro, vec3 rd){
+  float res=1., t=.02;
+  for(int i=0;i<32;i++){ float h=map(ro+rd*t).x; res=min(res,9.*h/t); t+=clamp(h,.02,.25); if(res<.002||t>4.) break; }
+  return clamp(res,0.,1.);
+}
+
+vec3 glossShade(vec3 p, vec3 n, vec3 rd, vec3 base, float chrome){
+  vec3 L=normalize(vec3(-.5,.75,.6)), L2=normalize(vec3(.8,.1,.5));
+  float dif=max(dot(n,L),0.), dif2=max(dot(n,L2),0.);
+  float sh=shadow(p+n*.01,L);
+  vec3 rf=reflect(rd,n);
+  float fr=.04+.96*pow(1.-max(dot(n,-rd),0.),5.);
+  float amb=.5+.5*n.y;
+  vec3 col;
+  if(chrome>.5){ col=base*env(rf)*1.2 + env(rf)*mix(.05,.9,fr); }
+  else{
+    col=base*(.26*amb+ .95*dif*sh + .28*dif2);
+    // 클리어코트 반사
+    col+= env(rf)*mix(.06,1.,fr)*.9;
+  }
+  float sp=pow(max(dot(rf,L),0.),90.)*sh; col+=vec3(1.6)*sp;
+  // 표면 산란 느낌의 부드러운 가장자리
+  col+=base*.12*pow(1.-max(dot(n,-rd),0.),2.);
+  return col;
+}
+vec3 glassShade(vec3 p, vec3 n, vec3 rd, vec3 tint, float id){
+  float fr=.04+.96*pow(1.-max(dot(n,-rd),0.),5.);
+  vec3 rfl=env(reflect(rd,n));
+  // 내부를 통과해 나가는 굴절 광선
+  vec3 rr=refract(rd,n,1./1.45);
+  vec3 q=p-n*.02; float t=0.;
+  for(int i=0;i<28;i++){ float h=-mapId(q+rr*t,id); if(h<.001) break; t+=max(h,.01); }
+  vec3 pe=q+rr*t; vec3 ne=-nrm(pe,id);
+  vec3 col;
+  vec3 o1=refract(rr,ne,1.42), o2=refract(rr,ne,1.45), o3=refract(rr,ne,1.49);
+  if(dot(o2,o2)<.01){ col=env(reflect(rr,ne))*.7; }
+  else col=vec3(env(o1).r,env(o2).g,env(o3).b);
+  col*=mix(vec3(1.),tint,clamp(t*1.4,0.,1.));
+  vec3 L=normalize(vec3(-.5,.75,.6));
+  float rim=pow(1.-max(dot(n,-rd),0.),3.);
+  col=mix(col,rfl,fr) - vec3(.10,.09,.06)*rim + vec3(2.)*pow(max(dot(reflect(rd,n),L),0.),120.);
+  return col;
+}
+
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*R)/R.y;
+  float t=T;
+  P0=vec3(-1.26,.04*sin(t*1.1),0.); P1=vec3(0.,.04*sin(t*1.1+1.7),0.); P2=vec3(1.26,.04*sin(t*1.1+3.4),0.);
+  R0=m3(.18*sin(t*.6)+M.y*.35, .35*sin(t*.5)+M.x*.6);
+  R1=m3(.16*sin(t*.55+1.)+M.y*.35, .32*sin(t*.45+2.)+M.x*.6);
+  R2=m3(.18*sin(t*.6+2.)+M.y*.35, .35*sin(t*.5+4.)+M.x*.6);
+  vec3 ro=vec3(0.,.05,6.2), rd=normalize(vec3(uv,-2.9));
+  // 바운딩 박스
+  vec3 bmin=vec3(-2.,-.9,-.9), bmax=vec3(2.,.9,.9);
+  vec3 i1=(bmin-ro)/rd, i2=(bmax-ro)/rd; vec3 tn=min(i1,i2), tf=max(i1,i2);
+  float t0=max(max(tn.x,tn.y),tn.z), t1=min(min(tf.x,tf.y),tf.z);
+  vec4 outc=vec4(0.);
+  float hit=-1.; float id=0.; vec3 p;
+  if(t0<t1&&t1>0.){
+    float tt=max(t0,0.);
+    for(int i=0;i<90;i++){ p=ro+rd*tt; vec2 h=map(p); if(h.x<.0012){hit=tt;id=h.y;break;} tt+=h.x*.8; if(tt>t1) break; }
+  }
+  if(hit>0.){
+    vec3 n=nrm(p,id);
+    vec3 base= id<.5?C0: id<1.5?C1:C2; float mt= id<.5?MAT.x: id<1.5?MAT.y:MAT.z;
+    vec3 c= mt>.5&&mt<1.5 ? glassShade(p,n,rd,base,id) : glossShade(p,n,rd,base, mt>1.5?1.:0.);
+    c=c/(1.+c*.18); c=pow(c,vec3(.94));
+    outc=vec4(c,1.);
+  } else {
+    // 뒤 벽면에 드리운 부드러운 그림자
+    float tp=(-.95-ro.z)/rd.z; vec3 pp=ro+rd*tp;
+    float s=shadow(pp,normalize(vec3(-.25,.45,1.)));
+    float a=(1.-s)*.16;
+    outc=vec4(vec3(0.),a);
+  }
+  gl_FragColor=vec4(outc.rgb*outc.a,outc.a);
+}`;
+
+  function Mark3D(canvas, opt) {
+    opt = opt || {};
+    const gl = canvas.getContext('webgl', { premultipliedAlpha: true, alpha: true, antialias: false, preserveDrawingBuffer: !!opt.still });
+    if (!gl) return null;
+    const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.error(gl.getShaderInfoLog(s)); return null; } return s; };
+    const vs = sh(gl.VERTEX_SHADER, VS), fs = sh(gl.FRAGMENT_SHADER, FS);
+    if (!vs || !fs) return null;
+    const pr = gl.createProgram(); gl.attachShader(pr, vs); gl.attachShader(pr, fs); gl.linkProgram(pr);
+    if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) { console.error(gl.getProgramInfoLog(pr)); return null; }
+    gl.useProgram(pr);
+    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(pr, 'a'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    const U = n => gl.getUniformLocation(pr, n);
+    const uR = U('R'), uT = U('T'), uM = U('M'), uMAT = U('MAT'), uBG = U('BG'), uC = [U('C0'), U('C1'), U('C2')];
+    let preset = opt.preset || 'mix';
+    const bg = opt.bg || [0.96, 0.96, 0.97];
+    function setPreset(p) {
+      preset = PRESETS[p] ? p : 'mix';
+      const P = PRESETS[preset];
+      P.col.forEach((c, i) => gl.uniform3fv(uC[i], c));
+      gl.uniform3fv(uMAT, P.mat);
+    }
+    setPreset(preset); gl.uniform3fv(uBG, bg);
+    const scale = opt.scale || Math.min(devicePixelRatio || 1, 1.5);
+    let sc = scale, fN = 0, fT = 0, last = 0;
+    let mx = 0, my = 0, tx = 0, ty = 0, raf = 0, visible = true, t0 = performance.now();
+    function size() {
+      const r = canvas.getBoundingClientRect();
+      const k = sc; const w = Math.max(2, Math.round(r.width * k)), h = Math.max(2, Math.round(r.height * k));
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      gl.viewport(0, 0, w, h); gl.uniform2f(uR, w, h);
+    }
+    function draw(time) {
+      mx += (tx - mx) * 0.06; my += (ty - my) * 0.06;
+      gl.uniform1f(uT, time); gl.uniform2f(uM, mx, my);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+    function loop(now) {
+      raf = 0; if (!visible) return;
+      if (last && fN < 40) { fT += now - last; fN++; if (fN === 40 && fT / 40 > 22 && sc > 0.6) { sc = Math.max(0.6, sc * 0.7); fN = 0; fT = 0; size(); } }
+      last = now;
+      draw((performance.now() - t0) / 1000); raf = requestAnimationFrame(loop);
+    }
+    size();
+    if (opt.still) { draw(opt.time || 1.2); }
+    else {
+      const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (RM) draw(1.2); else raf = requestAnimationFrame(loop);
+      new IntersectionObserver(es => { visible = es[0].isIntersecting; if (visible && !raf && !RM) { last = 0; raf = requestAnimationFrame(loop); } }).observe(canvas);
+      addEventListener('resize', () => { size(); if (RM) draw(1.2); });
+      addEventListener('pointermove', e => { tx = (e.clientX / innerWidth - 0.5) * 2; ty = (e.clientY / innerHeight - 0.5) * 2; }, { passive: true });
+    }
+    return { setPreset, redraw: () => draw((performance.now() - t0) / 1000) };
+  }
+  return Mark3D;
+})();
+</script>
 <script>(() => {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
